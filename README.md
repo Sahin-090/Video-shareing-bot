@@ -1,6 +1,6 @@
 # Telegram Video Delivery Bot
 
-Python (aiogram 3 + asyncpg) bot for Railway. Videos live in a private Telegram channel; the bot stores only Telegram `file_id`s and metadata in PostgreSQL and delivers videos straight into the user's chat. No Redis, no downloads, no files kept on Railway.
+Python (aiogram 3 + asyncpg) bot for Hosting. Videos live in a private Telegram channel; the bot stores only Telegram `file_id`s and metadata in PostgreSQL and delivers videos straight into the user's chat. No Redis, no downloads, no files kept on Hostinger.
 
 ## How it works
 - User sends a number → picks 🆕 New / 📦 Old → bot sends that many **unique** videos → `✅ N unique videos delivered.` + 🔄 Request Again.
@@ -22,7 +22,7 @@ Telegram bots **cannot read channel history**, so the bot uses two clients:
 ### One-time setup
 1. Get `API_ID` and `API_HASH` at <https://my.telegram.org> → *API development tools*.
 2. On your own computer run `pip install telethon && python generate_session.py` and log in with an account that is a member of the channel. Copy the printed `SESSION_STRING`. Treat it like a password.
-3. In Railway → *Variables* add `API_ID`, `API_HASH`, `SESSION_STRING`, `SOURCE_CHANNEL_ID` (e.g. `-1001234567890`).
+3. In Hosting → *Variables* add `API_ID`, `API_HASH`, `SESSION_STRING`, `SOURCE_Url_ID` (e.g. `-1001234567890`).
 4. Make the bot an administrator of the channel.
 5. As an admin, send `/scan` to the bot.
 
@@ -42,17 +42,17 @@ Every channel **post** is one row, identified by `UNIQUE(channel_id, telegram_me
 `video_number` is one global sequence (Video #1, #2, …), independent of Telegram message ids. Scanned videos are numbered oldest → newest without gaps, inside a lock so concurrent writers cannot collide. A video keeps its number for life. (Older versions numbered New and Old separately; the first start of this version renumbers existing videos once into the global sequence, ordered by date.)
 
 ### Restart safety
-Scan progress (`scan_state` table) is checkpointed only *after* each batch is written. If Railway restarts mid-scan, the next scan continues from the checkpoint; a scan that was "running" at restart is shown as `interrupted`. A single bad message or database row is logged and skipped, never fatal.
+Scan progress (`scan_state` table) is checkpointed only *after* each batch is written. If Hosting restarts mid-scan, the next scan continues from the checkpoint; a scan that was "running" at restart is shown as `interrupted`. A single bad message or database row is logged and skipped, never fatal.
 
-## Deploy on Railway
+## Deploy on Hosting
 1. Create the bot with @BotFather and copy the token.
-2. Push this folder to a GitHub repo → Railway → *New Project → Deploy from GitHub*.
+2. Push this folder to a GitHub repo → Hosting → *New Project → Deploy from GitHub*.
 3. In the project, *New → Database → PostgreSQL*.
 4. In the bot service → *Variables*: `BOT_TOKEN`, `ADMIN_IDS`, and `DATABASE_URL` (reference the Postgres service's `DATABASE_URL`), plus the scanner variables above. Add the optional variables from `.env.example` as needed.
 5. The `Procfile` runs `python bot.py` as a worker. The schema and migrations are applied automatically on every start (`database/schema.sql`, idempotent).
 6. Send `/scan` to the bot as an admin.
 
-Run only **one** instance of the service (Telegram long-polling doesn't support several). No Redis, no volumes, no files kept on Railway.
+Run only **one** instance of the service (Telegram long-polling doesn't support several). No Redis, no volumes, no files kept on Hostinger.
 
 ## Admin commands (IDs in `ADMIN_IDS`)
 | Command | Purpose |
@@ -93,14 +93,14 @@ Added on top of the existing bot (scanner, `/scan`, categories, duplicate protec
 
 - **Never the same video twice per user.** `user_video_history` (`UNIQUE(user_id, video_id)`) records every delivery. New, Old, More New, More Old, ✨ Fresh Batch and 🔄 New Request all exclude it. It lives in the database, so restarts, redeploys and `/scan` never clear it. Admins can wipe one user with `/resethistory <user_id>`.
 - **Strict collections.** New only returns New and Old only returns Old. If fewer unseen videos remain than requested, the user is told and gets what is left, then is offered the other collection / a new request. When a collection is used up, a contextual "end of collection" message is shown.
-- **2-minute auto-delete (restart-safe).** Each video message the bot sends is stored in `delivered_messages` with `delete_at`. A background worker (`services/cleanup_service.py`) deletes due messages from the *user's chat* only; the source channel, `videos` and the history are never touched. After a Railway restart overdue rows are deleted on the first tick. Users who delete a message themselves, or block the bot, are handled silently.
+- **2-minute auto-delete (restart-safe).** Each video message the bot sends is stored in `delivered_messages` with `delete_at`. A background worker (`services/cleanup_service.py`) deletes due messages from the *user's chat* only; the source channel, `videos` and the history are never touched. After a Hostinger restart overdue rows are deleted on the first tick. Users who delete a message themselves, or block the bot, are handled silently.
 - **Request lock + rate limit** (database-based, no Redis): double taps never start parallel deliveries (`user_states`), and `RATE_LIMIT_REQUESTS` per `RATE_LIMIT_WINDOW` seconds caps request spam (`user_rate_limits`).
 - **UI:** premium `/start`, main menu (`/menu`), `📊 My Requests`, `ℹ️ Help`, progress state, post-delivery buttons (🔥 More New, ♻️ More Old, ✨ Fresh Batch, 🔄 New Request, 🏠 Main Menu). All texts/keyboards are in `ui.py`.
 - **Admin:** `/stats` now shows deliveries, duplicate deliveries prevented, auto-delete setting and last scan.
 
 New environment variables (all optional): `AUTO_DELETE_SECONDS` (default 120), `RATE_LIMIT_REQUESTS` (5), `RATE_LIMIT_WINDOW` (60).
 
-**Auto-delete env:** set `AUTO_DELETE_SECONDS` in Railway → *Variables* (seconds, minimum 5, default 120; e.g. `300` = 5 minutes). A value saved from the admin panel (⏱️ Auto-delete) overrides the env value; reset it in the panel to use the env again. See `.env.example` for all variables.
+**Auto-delete env:** set `AUTO_DELETE_SECONDS` in Hostinger → *Variables* (seconds, minimum 5, default 120; e.g. `300` = 5 minutes). A value saved from the admin panel (⏱️ Auto-delete) overrides the env value; reset it in the panel to use the env again. See `.env.example` for all variables.
 The schema changes are additive and applied automatically on start. History starts at the upgrade: deliveries made before it were never recorded, so users may receive those videos once more.
 
 ## Upgrade: Admin Panel, developer page, configurable public UI
@@ -117,7 +117,7 @@ unique per-user history, 2-minute auto-delete and all admin commands are unchang
 ### Admin Panel (`/admin`, only IDs in `ADMIN_IDS`)
 Dashboard → 📊 Statistics · 🎬 Video Manager · 👥 User Manager · 📡 Channel Scanner · 🤖 Bot Control · 🛠️ Maintenance · 🎨 Public Settings · 👨‍💻 Developer Settings · ⚙️ Bot Settings · 📋 Logs. Every page has `⬅️ Back` and `🏠 Dashboard`.
 - **Security:** a normal user sending `/admin` or pressing any `adm:` button gets `⛔ You don't have permission to access the Admin Panel.` (same reply for everyone, nothing about who is an admin). Router filters *and* a second check inside every callback verify `user_id in ADMIN_IDS` on the server. Admin buttons are never shown to normal users.
-- **Bot OFF / Maintenance / Block:** enforced by one middleware in front of every message and button press. Admins always pass, so they can turn the bot back on, end maintenance, scan, read logs and manage videos while it is closed. State is stored in PostgreSQL (`bot_settings`, `users.is_banned`) and survives Railway restarts.
+- **Bot OFF / Maintenance / Block:** enforced by one middleware in front of every message and button press. Admins always pass, so they can turn the bot back on, end maintenance, scan, read logs and manage videos while it is closed. State is stored in PostgreSQL (`bot_settings`, `users.is_banned`) and survives Hostinger restarts.
 - **Dangerous actions** (delete video, block user, clear history, bot OFF, enable maintenance) ask `⚠️ Are you sure? ✅ Confirm / ❌ Cancel`.
 - **Editable texts** (welcome, help, auto-delete notice, maintenance title/message/emoji, developer bio) are validated, limited to `<b> <i> <u> <s> <code>` (everything else is escaped), shown as a **preview** and only saved on `✅ Save`. `{auto_delete}` and `{max}` placeholders work. Send `default` to restore the built-in text.
 - **Public buttons:** each of Request / New / Old / More / Help / Developer can be switched off; the panel refuses to switch off the last way to request videos, and the server rejects taps on old messages that still carry a disabled button.
@@ -137,7 +137,7 @@ That was the file_id bridge (`AUTO_BRIDGE=true`): after a scan it forwarded ever
 
 ## Multiple source channels
 
-Set `SOURCE_CHANNEL_IDS` to a comma separated list, e.g. `-1001111111111,-1002222222222` (the old `SOURCE_CHANNEL_ID` still works, also with a list).
+Set `SOURCE_Url_IDS` to a comma separated list, e.g. `-1001111111111,-1002222222222` (the old `SOURCE_Crl_ID` still works, also with a list).
 
 - **Requirements:** the bot must be an admin of every channel (live detection + `copy_message` delivery), and the `SESSION_STRING` account must be a member of every channel (history scan).
 - **Scanning:** `/scan`, Quick Scan and the automatic catch-up go through all channels. Each channel has its own checkpoint (`scan_checkpoints`), so a new channel is imported from its first post while the others only continue where they stopped. A channel that cannot be read does not stop the others; the report says how many failed.
