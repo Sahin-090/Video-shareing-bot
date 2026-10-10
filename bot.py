@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 
 from config import load_config
 from database import Database
+from force_subscribe import ForceSubscribeGate, load_force_sub_config, startup_check
 from handlers import admin, admin_panel, start, user
 from logging_setup import log_event, setup_logging
 from middlewares import AccessGate, on_error
@@ -12,6 +13,7 @@ from services.bridge_service import BridgeService
 from services.cleanup_service import CleanupService
 from services.delivery_service import DeliveryService
 from services.event_service import EventService
+from services.force_sub_service import ForceSubService
 from services.scanner_service import ScannerService
 from services.settings_service import SettingsService
 from services.user_service import UserService
@@ -44,7 +46,13 @@ async def main() -> None:
     bridge = BridgeService(bot, videos, cfg)
     delivery = DeliveryService(bot, db, videos, users, cfg, settings, events)
     cleanup = CleanupService(bot, db, events)
-    panel = admin_panel.Panel(bot, cfg, db, users, videos, scanner, bridge, settings, events)
+    # Force-subscribe channels live in PostgreSQL and are managed from the Admin Panel.
+    fs_cfg = load_force_sub_config()
+    force_sub = ForceSubService(db)
+    await force_sub.load()
+    await force_sub.seed_default(bot, fs_cfg.channel, fs_cfg.url, fs_cfg.name)   # first start only
+    panel = admin_panel.Panel(bot, cfg, db, users, videos, scanner, bridge, settings, events,
+                              force_sub=force_sub)
     await users.reset_delivering()
     await scanner.reset_stale()   # a scan that was running when Railway restarted is not running any more
 
@@ -56,6 +64,10 @@ async def main() -> None:
     gate = AccessGate(cfg, settings, users)
     dp.message.outer_middleware(gate)
     dp.callback_query.outer_middleware(gate)
+    # Force subscribe: live getChatMember check on every non-admin message / button press.
+    fsub = ForceSubscribeGate(cfg, settings, users, fs_cfg, force_sub)
+    dp.message.outer_middleware(fsub)
+    dp.callback_query.outer_middleware(fsub)
     dp.errors.register(on_error)      # users never see Python exceptions
     dp.include_router(admin_panel.router)   # /admin dashboard (admin-only, server-side checked)
     dp.include_router(admin.router)   # admin commands; must come before the generic text handler
@@ -64,6 +76,7 @@ async def main() -> None:
 
     await bot.get_me()
     log.info("✅ Bot client started")
+    await startup_check(bot, fs_cfg, force_sub)   # logs a warning if the bot is not admin of the channel
     await scanner.validate_session()   # logs only fixed, safe messages; bot keeps running either way
     log_event(log, logging.INFO, "bot_starting", admins=len(cfg.admin_ids),
               scanner=scanner.enabled)

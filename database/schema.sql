@@ -216,3 +216,17 @@ ALTER TABLE videos DROP CONSTRAINT IF EXISTS videos_telegram_file_unique_id_key;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_videos_manual_uid
     ON videos (telegram_file_unique_id) WHERE channel_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_videos_unique_id ON videos (telegram_file_unique_id);
+
+-- ======================================================================================
+-- Force Subscribe Manager (additive, idempotent): channels users must be members of.
+-- Managed from the Admin Panel (📢 Force Subscribe Manager).
+-- ======================================================================================
+CREATE TABLE IF NOT EXISTS force_sub_channels (
+    id         SERIAL PRIMARY KEY,
+    chat_id    BIGINT NOT NULL UNIQUE,
+    title      TEXT NOT NULL,
+    username   TEXT,
+    url        TEXT NOT NULL,
+    enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

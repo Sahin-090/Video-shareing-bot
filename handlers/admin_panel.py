@@ -26,6 +26,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton as B, InlineKeyboa
 import ui
 from config import Config
 from database import Database
+from handlers.fsub_panel import ForceSubPanelMixin
 from logging_setup import log_event
 from services.bridge_service import BridgeService
 from services.broadcast_service import BroadcastResult, BroadcastService, MAX_BODY, card_kb, render
@@ -257,11 +258,13 @@ PAGE_OF = {"welcome_message": "welcome", "help_message": "help", "delete_notice"
 
 
 # --------------------------------------------------------------------- the panel
-class Panel:
+class Panel(ForceSubPanelMixin):
     def __init__(self, bot: Bot, cfg: Config, db: Database, users: UserService,
                  videos: VideoService, scanner: ScannerService, bridge: BridgeService,
-                 settings: SettingsService, events: EventService) -> None:
+                 settings: SettingsService, events: EventService, force_sub=None) -> None:
         self.bot, self.cfg, self.db = bot, cfg, db
+        self.force_sub = force_sub       # ForceSubService (📢 Force Subscribe Manager)
+        self._fsub_health: dict = {}
         self.users, self.videos, self.scanner, self.bridge = users, videos, scanner, bridge
         self.settings, self.events = settings, events
         self.broadcast = BroadcastService(bot, db, users)
@@ -336,6 +339,8 @@ class Panel:
         parts = path.split(":")
         route, a = (parts[1] if len(parts) > 1 else "home"), parts[2:]
         sub = a[0] if a else ""
+        if route == "fsub":
+            return await self.p_fsub(a)
         if route == "stats":
             return await self.p_stats()
         if route == "vid":
@@ -409,6 +414,7 @@ class Panel:
             B(text="⚙️ Bot Settings", callback_data="adm:set"),
             B(text="📋 Logs", callback_data="adm:log"),
         ])
+        rows.append([B(text="📢 Force Subscribe Manager", callback_data="adm:fsub")])
         rows.append([B(text="🏠 Main Menu", callback_data="menu")])
         return text, Kb(inline_keyboard=rows)
 
