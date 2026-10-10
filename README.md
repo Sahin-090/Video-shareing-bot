@@ -1,4 +1,5 @@
 # Telegram Video Delivery Bot
+<img width="360" height="360" alt="WhatsApp Image 2026-10-10 at 8 11 16 AM" src="https://github.com/user-attachments/assets/346183c1-f86e-4aae-b3df-7f5a61c0ca81" />
 
 Python (aiogram 3 + asyncpg) bot for Hosting. Videos live in a private Telegram channel; the bot stores only Telegram `file_id`s and metadata in PostgreSQL and delivers videos straight into the user's chat. No Redis, no downloads, no files kept on Hostinger.
 
@@ -16,6 +17,7 @@ Telegram bots **cannot read channel history**, so the bot uses two clients:
 2. **Bot API** – delivers videos to users and sees new channel posts live.
 
 **Bot API `file_id` bridge.** A Telethon media id is not a Bot API `file_id`, so it is never stored as one. After a scan, the *bot* forwards each scanned post to the admin who ran `/scan` (a supported Bot API workflow), reads the real `file_id` from the forwarded message, stores it and deletes the forwarded copy (≈1 video/second, nothing downloaded). Delivery then uses `send_video(file_id)`. If Telegram prevents this for a post (bot not a channel admin, protected content, deleted post) no id is faked: the admin gets a report and that video keeps being delivered with `copy_message` from the channel, which requires the bot to be a channel administrator.
+<img width="360" height="360" alt="WhatsApp Image 2026-10-10 at 8 11 17 AM" src="https://github.com/user-attachments/assets/ebfd3b41-9b92-4fba-b713-93a55df564b1" />
 
 **Two separate clients:** the Bot API client (`BOT_TOKEN`) handles users, buttons, delivery and admin commands; the Telethon **user** client (`API_ID` + `API_HASH` + `SESSION_STRING`) is used *only* for reading channel history. `SESSION_STRING` must come from a normal user account that is a member of the channel. A session created by logging in with the bot token is rejected at startup, because bots may not call `GetHistoryRequest` (`BotMethodInvalidError`).
 
@@ -138,6 +140,7 @@ That was the file_id bridge (`AUTO_BRIDGE=true`): after a scan it forwarded ever
 ## Multiple source channels
 
 Set `SOURCE_Url_IDS` to a comma separated list, e.g. `-1001111111111,-1002222222222` (the old `SOURCE_Crl_ID` still works, also with a list).
+<img width="360" height="360" alt="WhatsApp Image 2026-10-10 at 8 20 36 AM" src="https://github.com/user-attachments/assets/f45529c2-bf10-4615-8847-f35bcc59fef1" />
 
 - **Requirements:** the bot must be an admin of every channel (live detection + `copy_message` delivery), and the `SESSION_STRING` account must be a member of every channel (history scan).
 - **Scanning:** `/scan`, Quick Scan and the automatic catch-up go through all channels. Each channel has its own checkpoint (`scan_checkpoints`), so a new channel is imported from its first post while the others only continue where they stopped. A channel that cannot be read does not stop the others; the report says how many failed.
